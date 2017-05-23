@@ -18,9 +18,9 @@ public class CameraController : MonoBehaviour
 	// Update is called once per frame
 	void Update ()
     {
-        RaycastHit hit;
-        Physics.Raycast(transform.position, Vector3.forward, out hit, 9999f, mapLayer);
-        Quaternion rot = Quaternion.Euler(45, 45, 0);//Quaternion.AngleAxis(45, Vector3.up);
+        //RaycastHit hit;
+        //Physics.Raycast(transform.position, Vector3.forward, out hit, 9999f, mapLayer);
+        //Quaternion rot = Quaternion.Euler(45, 45, 0);//Quaternion.AngleAxis(45, Vector3.up);
 
         //transform.position = rot * 10f;
 
