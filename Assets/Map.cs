@@ -11,23 +11,23 @@ public enum HeuristicType
 
 public class Map : MonoBehaviour
 {
-    public GameObject player, crumb;
-    public Gradient heuristicGradient;
-    public Color expandedColor, checkedColor, goalColor;
-    private Renderer rend;
-    private Vector3 center;
-
+    public static Map instance;
     public uint xSize, ySize;
     private static uint prevX, prevY;
 
+    public GameObject crumb;
+    private Renderer rend;
+    public Gradient heuristicGradient;
+    public Color expandedColor, checkedColor, goalColor;
+
     public static GameObject mapObj;
     public static Breadcrumb[,] breadcrumbs;
+
     public HeuristicType heuristicType = HeuristicType.None;
     private Dropdown heuristicTypeDropdown;
 
-    private static Breadcrumb startCrumb , goalCrumb;
     public static Button startCrumbButton, goalCrumbButton;
-
+    private static Breadcrumb startCrumb , goalCrumb;
     public static Breadcrumb StartCrumb
     {
         get { return startCrumb; }
@@ -52,63 +52,71 @@ public class Map : MonoBehaviour
             goalCrumb.SetColor(Color.green);
         }
     }
+
     public static bool wantSetStart, wantSetGoal;
 
     private void Awake()
     {
-        rend = GameObject.Find("Map").GetComponent<Renderer>();
-        heuristicTypeDropdown = GameObject.Find("Heuristic Type: Dropdown").GetComponent<Dropdown>();
-    }
-
-    // Use this for initialization
-    void Start ()
-    {
-        startCrumbButton = GameObject.Find("Set Goal Button").GetComponent<Button>();
-        goalCrumbButton = GameObject.Find("Set Start Button").GetComponent<Button>();
+        instance = this;
         mapObj = gameObject;
 
-        prevX = xSize;
-        prevY = ySize;
+        rend = GameObject.Find("Map").GetComponent<Renderer>();
+        heuristicTypeDropdown = GameObject.Find("Heuristic Type: Dropdown").GetComponent<Dropdown>();
+        startCrumbButton = GameObject.Find("Set Goal Button").GetComponent<Button>();
+        goalCrumbButton = GameObject.Find("Set Start Button").GetComponent<Button>();
 
-        ResizeMap();
+        startCrumb = goalCrumb = GetCrumb(1, 1);
+
         InitializeMap();
         InitializeHeuristics(heuristicType);
     }
-	
-	// FixedUpdate is called once per frame
-	void FixedUpdate ()
+
+    public void SetX(string xParse)
+    {
+        if (xParse == "" || xParse == null)
+            return;
+
+        int x = int.Parse(xParse);
+        x = Mathf.Clamp(x, 2, 99);
+        xSize = (uint)x;
+    }
+    public void SetY(string yParse)
+    {
+        if (yParse == "" || yParse == null)
+            return;
+
+        int y = int.Parse(yParse);
+        y = Mathf.Clamp(y, 2, 99);
+        ySize = (uint)y;
+    }
+
+    // FixedUpdate is called once per frame
+    void FixedUpdate ()
     {
         if (prevX == xSize && prevY == ySize)
             return;
 
-        ResizeMap();
-        ResetMap();
         InitializeMap();
         InitializeHeuristics(heuristicType);      
     }
 
-    void ResizeMap()
+    void InitializeMap()
     {
+        StopAllCoroutines();
         prevX = xSize;
         prevY = ySize;
 
-        rend.material.mainTextureScale = new Vector2((float)xSize, (float)ySize);
+        rend.material.mainTextureScale = new Vector2(xSize, ySize);
         transform.localScale = new Vector3((float)xSize / 10, 1, (float)ySize / 10);
-    }
 
-    void ResetMap()
-    {
-        if (breadcrumbs == null)
-            return;
+        if (breadcrumbs != null)
+            foreach (Breadcrumb b in breadcrumbs)
+                if (b != null)
+                    b.DestroySelf();
 
-        foreach (Breadcrumb b in breadcrumbs)
-            if(b != null)
-                b.DestroySelf();        
-    }
-
-    void InitializeMap()
-    {
         breadcrumbs = new Breadcrumb[xSize, ySize];
+
+        Breadcrumb.numCrumbs = 0;
 
         for (int x = 1; x < xSize; x++)
         {
@@ -116,6 +124,59 @@ public class Map : MonoBehaviour
             {
                 breadcrumbs[x, z] = Instantiate(crumb, new Vector3(x, 0, z), Quaternion.identity).GetComponent<Breadcrumb>();
                 breadcrumbs[x, z].SetCoordinates(new Vector2(x, z));
+            }
+        }
+
+        if(startCrumb == null)
+            startCrumb = GetCrumb(1, 1);
+        if (goalCrumb == null)
+            goalCrumb = GetCrumb(1, 1);
+    }
+
+    public void InitializeHeuristics(HeuristicType type)
+    {
+        StopAllCoroutines();
+
+        if (breadcrumbs == null)
+            return;
+
+        foreach(Breadcrumb b in breadcrumbs)
+        {
+            if (b == null)
+                continue;
+
+            if (b == goalCrumb)
+            {
+                b.heuristic = 0;
+                b.SetColor(Color.green);
+                continue;
+            }
+
+            switch (type)
+            {
+                case HeuristicType.None:
+                        b.heuristic = 0;
+                        b.initialColor = heuristicGradient.Evaluate(0);
+                        b.SetColor(heuristicGradient.Evaluate(0));
+                    break;
+                case HeuristicType.DistanceFromGoal:
+                        float startGoalDistance = Vector2.Distance(startCrumb.coordinates, goalCrumb.coordinates);
+                        float distance = Vector2.Distance(b.coordinates, goalCrumb.coordinates);
+                        b.heuristic = distance;
+                        b.initialColor = heuristicGradient.Evaluate(distance / startGoalDistance);
+                        b.SetColor(heuristicGradient.Evaluate(distance / startGoalDistance));
+                    break;
+                case HeuristicType.ID:
+                        b.heuristic = b.ID;
+                        b.initialColor = heuristicGradient.Evaluate((float)b.ID / Breadcrumb.numCrumbs);
+                        b.SetColor(heuristicGradient.Evaluate((float)b.ID / Breadcrumb.numCrumbs));
+                    break;
+                case HeuristicType.Random:
+                        float randomRange = Random.Range(0, Mathf.Max(xSize, ySize));
+                        b.heuristic = randomRange;
+                        b.initialColor = heuristicGradient.Evaluate(randomRange / Mathf.Max(xSize, ySize));
+                        b.SetColor(heuristicGradient.Evaluate(randomRange/Mathf.Max(xSize,ySize)));
+                    break;
             }
         }
     }
@@ -128,62 +189,31 @@ public class Map : MonoBehaviour
             return breadcrumbs[X, Y];
     }
 
-    public void InitializeHeuristics(HeuristicType type)
-    {
-        foreach(Breadcrumb b in breadcrumbs)
-        {
-            if(startCrumb == null || goalCrumb == null || b == null)
-                continue;
-
-            if (b == goalCrumb)
-            {
-                b.Heuristic = 0;
-                b.SetColor(heuristicGradient.Evaluate(0));
-                continue;
-            }
-
-            switch (type)
-            {
-                case HeuristicType.None:
-                        b.Heuristic = 0;
-                        b.SetColor(heuristicGradient.Evaluate(0));
-                    break;
-                case HeuristicType.DistanceFromGoal:
-                        float startGoalDistance = Vector2.Distance(startCrumb.Coordinates, goalCrumb.Coordinates);
-                        float distance = Vector2.Distance(b.Coordinates, goalCrumb.Coordinates);
-                        b.Heuristic = distance;
-                        b.SetColor(heuristicGradient.Evaluate(distance / startGoalDistance));
-                    break;
-                case HeuristicType.ID:
-                        b.Heuristic = b.ID;
-                        b.SetColor(heuristicGradient.Evaluate(b.ID / Breadcrumb.numCrumbs));
-                    break;
-                case HeuristicType.Random:
-                        float randomRange = Random.Range(0, Mathf.Max(xSize, ySize));
-                        b.Heuristic = randomRange;
-                        b.SetColor(heuristicGradient.Evaluate(randomRange/Mathf.Max(xSize,ySize)));
-                    break;
-            }
-        }
-    }
-
     public void SetStartCrumb(bool startSetting)
     {
+        StopAllCoroutines();
+
         wantSetStart = startCrumbButton.interactable = startSetting;
         wantSetGoal = false;
         goalCrumbButton.interactable = true;
 
+        InitializeHeuristics(heuristicType);
     }
 
     public void SetGoalCrumb(bool startSetting)
     {
+        StopAllCoroutines();
+
         wantSetGoal = goalCrumbButton.interactable = startSetting;
         wantSetStart = false;
         startCrumbButton.interactable = true;
+
+        InitializeHeuristics(heuristicType);
     }
 
     public void SetHeuristicType()
     {
         heuristicType = (HeuristicType)heuristicTypeDropdown.value;
+        InitializeHeuristics(heuristicType);
     }
 }

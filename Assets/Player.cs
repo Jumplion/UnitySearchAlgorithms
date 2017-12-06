@@ -8,8 +8,7 @@ public enum SearchType
     BFS = 0,
     DFS = 1,
     UCS = 2,
-    Greedy = 3,
-    Astar = 4
+    Astar = 3
 }
 
 public enum Direction
@@ -26,43 +25,51 @@ public enum Direction
 
 public class Player : MonoBehaviour
 {
+    public SearchType searchType = SearchType.BFS;
     public bool allowDiagonal = false;
-    private Toggle diagonalToggle;
-    private int numDirections = 4;
-    private int numSteps = 0;
-
-    public static Player instance;
-
-    [Range(0, 1000)]
     public uint stepSpeed = 100;
 
+    public static Player instance;
     public static Vector3 currentPosition = Vector3.zero;
-    public static List<Vector2> checkedPositions;
+    public static bool searching = false;
 
-    public SearchType searchType = SearchType.BFS;
     private Dropdown searchTypeDropdown;
+    private Toggle diagonalToggle;
+    private int numDirections = 4, numSteps;
 
     private void Awake()
     {
         instance = this;
-        numDirections = allowDiagonal ? 4 : 8;
+        numDirections = allowDiagonal ? 8 : 4;
         searchTypeDropdown = GameObject.Find("Search Type: Dropdown").GetComponent<Dropdown>();
         diagonalToggle = GameObject.Find("Diagonal: Toggle").GetComponent<Toggle>();
     }
 
+    private void Start()
+    {
+        currentPosition = new Vector3(1,0,1);
+    }
+
     public void SetSearchType()
     {
+        StopAllCoroutines();
+
         searchType = (SearchType)searchTypeDropdown.value;
+
+        Map.instance.InitializeHeuristics(Map.instance.heuristicType);
     }
 
     public void SetDiagonalMovement()
     {
         allowDiagonal = diagonalToggle.isOn;
+        numDirections = allowDiagonal ? 8 : 4;
     }
 
     public void StartSearch()
     {
         StopAllCoroutines();
+
+        searching = true;
 
         numSteps = 0;
 
@@ -71,7 +78,6 @@ public class Player : MonoBehaviour
             case SearchType.BFS:    StartCoroutine(BFS(Map.StartCrumb, Map.GoalCrumb));         break;
             case SearchType.DFS:    StartCoroutine(DFS(Map.StartCrumb, Map.GoalCrumb));         break;
             case SearchType.UCS:    StartCoroutine(UCS(Map.StartCrumb, Map.GoalCrumb));         break;
-            case SearchType.Greedy: StartCoroutine(Greedy(Map.StartCrumb, Map.GoalCrumb));      break;
             case SearchType.Astar:  StartCoroutine(Astar(Map.StartCrumb, Map.GoalCrumb, true)); break;
             default: StartCoroutine(BFS(Map.StartCrumb, Map.GoalCrumb));                        break;
         }
@@ -86,8 +92,8 @@ public class Player : MonoBehaviour
     Breadcrumb CheckNode(Breadcrumb crumb, Direction d)
     {
         Breadcrumb result = null;
-        int X = (int)crumb.Coordinates.x;
-        int Y = (int)crumb.Coordinates.y;
+        int X = (int)crumb.coordinates.x;
+        int Y = (int)crumb.coordinates.y;
         
         switch (d)
         {
@@ -149,6 +155,7 @@ public class Player : MonoBehaviour
             }      
         }
 
+        searching = false;
         yield return null;
     }
 
@@ -198,6 +205,7 @@ public class Player : MonoBehaviour
             }
         }
 
+        searching = false;
         yield return null;
     }
 
@@ -248,13 +256,15 @@ public class Player : MonoBehaviour
                 }
             }
         }
-        
+
+        searching = false;
         yield return null;
     }
 
     IEnumerator Greedy(Breadcrumb root, Breadcrumb goal)
     {
-        print("Did not find the Goal");
+        print("Greedy not implemented yet");
+        searching = false;
         return null;
     }
 
@@ -278,7 +288,7 @@ public class Player : MonoBehaviour
         // For each node, the total cost of getting from the start node to the goal by passing by that node. That value is partly known, partly heuristic.
         Dictionary<Breadcrumb, float> estimatedHeuristic = new Dictionary<Breadcrumb, float>();
 
-        estimatedHeuristic[root] = root.Heuristic;
+        estimatedHeuristic[root] = root.heuristic;
 
         Breadcrumb current = null;
 
@@ -313,7 +323,7 @@ public class Player : MonoBehaviour
                         {
                             if (!expanded.Contains(neighbor))
                             {
-                                float temp_gScore = fromStartHeuristic[current] + (current.Heuristic - neighbor.Heuristic);
+                                float temp_gScore = fromStartHeuristic[current] + (current.heuristic - neighbor.heuristic);
 
                                 if (!pq.Contains(neighbor)) // Discover a new node
                                     pq.Enqueue(neighbor);
@@ -323,13 +333,13 @@ public class Player : MonoBehaviour
                                 // This path is the best until now. Record it!
                                 cameFrom[neighbor] = current;
                                 fromStartHeuristic[neighbor] = temp_gScore;
-                                estimatedHeuristic[neighbor] = fromStartHeuristic[neighbor] + neighbor.Heuristic;
+                                estimatedHeuristic[neighbor] = fromStartHeuristic[neighbor] + neighbor.heuristic;
                             }
                         }
                         // Otherwise, we don't need/don't want to check if we've already expanded the node, so let's check it
                         else
                         {
-                            float tentative_gScore = fromStartHeuristic[current] + (current.Heuristic - neighbor.Heuristic);
+                            float tentative_gScore = fromStartHeuristic[current] + (current.heuristic - neighbor.heuristic);
 
                             if (!pq.Contains(neighbor))	// Discover a new node
                                 pq.Enqueue(neighbor);
@@ -339,7 +349,7 @@ public class Player : MonoBehaviour
                             // This path is the best until now. Record it!
                             cameFrom[neighbor] = current;
                             fromStartHeuristic[neighbor] = tentative_gScore;
-                            estimatedHeuristic[neighbor] = fromStartHeuristic[neighbor] + neighbor.Heuristic;
+                            estimatedHeuristic[neighbor] = fromStartHeuristic[neighbor] + neighbor.heuristic;
                         }
 
                         yield return new WaitForSeconds((float)stepSpeed / 1000);
@@ -348,6 +358,7 @@ public class Player : MonoBehaviour
             }
         }
 
+        searching = false;
         yield return null;
     }
 }

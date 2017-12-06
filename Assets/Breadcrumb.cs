@@ -14,12 +14,10 @@ public class Breadcrumb : MonoBehaviour, IComparable<Breadcrumb>
     public static int numCrumbs = 0;
     public readonly int ID;
 
-    public Vector2 Coordinates { get { return coordinates; } }
-    private Vector2 coordinates = Vector2.zero;
-    public float Heuristic { get { return heuristic; } set { heuristic = value; } }
-    private float heuristic = Mathf.Infinity;
+    public Vector2 coordinates = Vector2.zero;
+    public float heuristic = Mathf.Infinity;
 
-    public Color initialColor;
+    public Color initialColor = Color.black;
 
     public CrumbType type = CrumbType.None;
 
@@ -59,7 +57,28 @@ public class Breadcrumb : MonoBehaviour, IComparable<Breadcrumb>
     // Highlight the breadcrumb (when not running)
     public void OnMouseEnter()
     {
-        SetColor(Color.red);
+        if(!Player.searching)   
+            SetColor(Color.red);
+    }
+
+    public void OnMouseUp()
+    {
+        if (Player.searching)
+            return;
+
+        if (Map.wantSetStart)
+        {
+            Map.StartCrumb = this;
+
+        }
+        else if (Map.wantSetGoal)
+        {
+            Map.GoalCrumb = this;
+            SetColor(Color.green);
+        }
+
+        Map.wantSetStart = false;
+        Map.wantSetGoal = false;
     }
 
     public void OnMouseExit()
@@ -69,19 +88,8 @@ public class Breadcrumb : MonoBehaviour, IComparable<Breadcrumb>
         else if (this == Map.GoalCrumb)
             SetColor(Color.green);
         else
-            SetColor(Color.black);
-    }
+            SetColor(initialColor);
 
-    public void OnMouseUp()
-    {
-        if (Map.wantSetStart)
-            Map.StartCrumb = this;
-
-        else if (Map.wantSetGoal)
-            Map.GoalCrumb = this;
-
-        Map.wantSetStart = false;
-        Map.wantSetGoal = false;
     }
 
     public int CompareTo(Breadcrumb other)
